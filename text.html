@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scholar AI - Research Platform</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #030712; --bg2: #0f172a; --bg3: #1e293b;
+            --border: rgba(255, 255, 255, 0.08); --text: #e2e8f0; --muted: #64748b;
+            --accent: #3b82f6; --accent-glow: rgba(59, 130, 246, 0.3);
+            --purple: #8b5cf6; --cyan: #06b6d4; --amber: #f59e0b; --green: #10b981;
+            --mono: 'JetBrains Mono', monospace; --sans: 'Inter', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+        
+        .navbar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border-right: 1px solid var(--border); padding: 1.5rem 1rem; z-index: 300; display: flex; flex-direction: column; }
+        .main-content { margin-left: 260px; padding: 2rem; min-height: 100vh; }
+        
+        .glass-panel { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 0.875rem 1rem; border-radius: 10px; color: var(--muted); cursor: pointer; transition: 0.2s; margin-bottom: 4px; text-decoration: none; }
+        .nav-item:hover, .nav-item.active { background: rgba(59, 130, 246, 0.1); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.2); }
+        
+        .search-box { display: flex; gap: 1rem; max-width: 800px; margin: 0 auto 2rem; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); padding: 0.5rem; border-radius: 16px; }
+        .search-input { flex: 1; background: transparent; border: none; color: var(--text); padding: 1rem; font-size: 15px; outline: none; }
+        .search-btn { background: linear-gradient(135deg, var(--accent), var(--cyan)); border: none; padding: 0 2rem; border-radius: 12px; color: white; font-weight: 600; cursor: pointer; }
+        
+        .page-section { display: none; animation: fadeIn 0.3s ease; }
+        .page-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        #mynetwork { width: 100%; height: 600px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--border); }
+        
+        .paper-card { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; margin-bottom: 1rem; transition: 0.3s; }
+        .paper-card:hover { border-color: var(--accent); transform: translateX(4px); }
+        .paper-title { font-size: 18px; font-weight: 600; margin-bottom: 0.5rem; color: var(--text); }
+        .paper-meta { font-size: 13px; color: var(--muted); margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-family: var(--mono); }
+        .badge.paper { background: rgba(139, 92, 246, 0.15); color: var(--purple); border: 1px solid rgba(139, 92, 246, 0.3); }
+        .badge.web { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .badge.file { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge.video { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+        .loading-state { text-align: center; padding: 4rem; color: var(--muted); }
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .file-upload { border: 2px dashed var(--border); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s; margin-bottom: 1rem; }
+        .file-upload:hover { border-color: var(--accent); background: rgba(59, 130, 246, 0.05); }
+        .file-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .file-item { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.5rem 1rem; border-radius: 8px; font-size: 12px; color: var(--green); display: flex; align-items: center; gap: 8px; }
+        
+        .related-topics { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .topic-tag { background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); padding: 0.5rem 1rem; border-radius: 20px; font-size: 12px; color: var(--purple); cursor: pointer; transition: 0.2s; }
+        .topic-tag:hover { background: rgba(139, 92, 246, 0.2); }
+
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 0.75rem 1.5rem; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; transition: 0.2s; border: none; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), var(--cyan)); color: white; }
+        .btn-secondary { background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid var(--border); }
+        .btn-danger { background: rgba(239, 68, 68, 0.15); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn:hover { transform: translateY(-2px); }
+
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
+        .timestamp { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+        .graph-controls { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .empty-state { text-align: center; padding: 4rem; color: var(--muted); }
+
+        @media print {
+            .navbar, .search-box, .file-upload, .btn, .action-bar, .graph-controls { display: none !important; }
+            .main-content { margin-left: 0; padding: 1rem; }
+            .glass-panel { border: 1px solid #000; background: white; color: black; }
+            body { background: white; color: black; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="navbar">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:2rem; color:white; font-weight:700; font-size:18px;">
+            <i data-lucide="sparkles" style="color:var(--accent)"></i> SCHOLAR AI
+        </div>
+        <div class="nav-item active" onclick="showSection('research')">
+            <i data-lucide="search"></i> Research
+        </div>
+        <div class="nav-item" onclick="showSection('graph')">
+            <i data-lucide="network"></i> Knowledge Graph
+        </div>
+        <div class="nav-item" onclick="showSection('files')">
+            <i data-lucide="folder"></i> Uploaded Files
+        </div>
+        <div class="nav-item" onclick="showSection('citations')">
+            <i data-lucide="quote"></i> Citations
+        </div>
+        <div style="margin-top:auto; padding:1rem; background:rgba(255,255,255,0.05); border-radius:10px; font-size:12px; color:var(--muted);">
+            Model: <span style="color:var(--green)">Llama 3</span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        
+        <!-- RESEARCH SECTION -->
+        <div id="research-section" class="page-section active">
+            <div class="action-bar">
+                <div>
+                    <h1 style="font-size:32px; margin-bottom:0.5rem;">Advanced Research</h1>
+                    <p style="color:var(--muted);">AI-powered analysis with file context & related topics</p>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="exportPDF()">
+                        <i data-lucide="file-down"></i> Export PDF
+                    </button>
+                    <button class="btn btn-secondary" onclick="showSection('graph')">
+                        <i data-lucide="network"></i> View Graph
+                    </button>
+                </div>
+            </div>
+
+            <!-- File Upload -->
+            <div class="glass-panel">
+                <h3 style="margin-bottom:1rem; color:var(--green);">📁 Upload Research Files (Optional)</h3>
+                <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+                    <i data-lucide="upload-cloud" style="width:40px; height:40px; color:var(--muted); margin:0 auto 1rem;"></i>
+                    <p style="color:var(--muted);">Click to upload PDF, TXT, or MD files</p>
+                    <p style="font-size:12px; color:var(--muted); margin-top:0.5rem;">These will be used as additional context</p>
+                </div>
+                <input type="file" id="fileInput" style="display:none;" accept=".pdf,.txt,.md" multiple onchange="handleFileUpload(event)">
+                <div id="fileList" class="file-list"></div>
+                <button class="btn btn-danger" onclick="clearFiles()" style="margin-top:1rem;">
+                    <i data-lucide="trash-2" style="width:14px; height:14px;"></i> Clear All Files
+                </button>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="Enter research topic (e.g., Quantum Computing in Healthcare)...">
+                <button class="search-btn" onclick="performSearch()">
+                    <i data-lucide="search" style="width:18px; height:18px;"></i> Research
+                </button>
+            </div>
+
+            <div id="loading" class="loading-state" style="display:none;">
+                <div class="spinner"></div>
+                <p>Analyzing sources, files & generating insights...</p>
+                <p style="font-size:12px; margin-top:0.5rem;">This may take 30-60 seconds with Llama 3</p>
+            </div>
+
+            <div id="results-area" style="display:none;">
+                <div class="glass-panel" id="pdf-overview">
+                    <h2 style="margin-bottom:1rem; color:var(--accent);">📝 AI Overview</h2>
+                    <p id="ai-overview" style="line-height:1.6; color:var(--text);"></p>
+                </div>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+                    <div class="glass-panel" id="pdf-facts">
+                        <h3 style="color:var(--cyan); margin-bottom:1rem;">⚡ Key Facts</h3>
+                        <ul id="key-facts" style="padding-left:1.2rem; color:var(--muted); line-height:1.8;"></ul>
+                    </div>
+                    <div class="glass-panel" id="pdf-innovations">
+                        <h3 style="color:var(--purple); margin-bottom:1rem;">🚀 Innovations</h3>
+                        <ul id="innovations" style="padding-left:1.2rem; color:var(--muted); line-height:1.8;"></ul>
+                    </div>
+                </div>
+
+                <div class="glass-panel" id="pdf-related">
+                    <h3 style="color:var(--amber); margin-bottom:1rem;">🔗 Related Topics</h3>
+                    <div id="related-topics" class="related-topics"></div>
+                </div>
+
+                <div class="glass-panel" id="pdf-sources">
+                    <h3 style="margin-bottom:1rem;">📚 External Research Sources</h3>
+                    <div id="sources-list"></div>
+                </div>
+
+                <p class="timestamp" id="search-timestamp"></p>
+            </div>
+        </div>
+
+        <!-- KNOWLEDGE GRAPH SECTION -->
+        <div id="graph-section" class="page-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+                <div>
+                    <h1 style="font-size:32px; margin-bottom:0.5rem;">🕸️ Knowledge Graph</h1>
+                    <p style="color:var(--muted);">Visualizing relationships between research entities</p>
+                </div>
+                <div class="graph-controls">
+                    <button class="btn btn-secondary" onclick="renderGraph()">
+                        <i data-lucide="refresh-cw"></i> Refresh
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportGraphImage()">
+                        <i data-lucide="download"></i> Export Image
+                    </button>
+                    <button class="btn btn-primary" onclick="showSection('research')">
+                        <i data-lucide="search"></i> New Search
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <div id="mynetwork"></div>
+                <div id="graph-empty" class="empty-state" style="display:none;">
+                    <i data-lucide="network" style="width:60px; height:60px; margin:0 auto 1rem; opacity:0.3;"></i>
+                    <h3>No Graph Data Available</h3>
+                    <p style="margin-top:0.5rem;">Run a research search first to generate a knowledge graph</p>
+                    <button class="btn btn-primary" style="margin-top:1rem;" onclick="showSection('research')">
+                        <i data-lucide="search"></i> Start Research
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3 style="margin-bottom:1rem;">📊 Graph Statistics</h3>
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1rem;">
+                    <div style="background:rgba(59,130,246,0.1); padding:1rem; border-radius:10px; border:1px solid rgba(59,130,246,0.3);">
+                        <p style="font-size:12px; color:var(--muted);">Total Nodes</p>
+                        <p style="font-size:24px; font-weight:700; color:var(--accent);" id="node-count">0</p>
+                    </div>
+                    <div style="background:rgba(139,92,246,0.1); padding:1rem; border-radius:10px; border:1px solid rgba(139,92,246,0.3);">
+                        <p style="font-size:12px; color:var(--muted);">Total Edges</p>
+                        <p style="font-size:24px; font-weight:700; color:var(--purple);" id="edge-count">0</p>
+                    </div>
+                    <div style="background:rgba(6,182,212,0.1); padding:1rem; border-radius:10px; border:1px solid rgba(6,182,212,0.3);">
+                        <p style="font-size:12px; color:var(--muted);">Last Updated</p>
+                        <p style="font-size:14px; font-weight:600; color:var(--cyan);" id="last-update">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILES SECTION -->
+        <div id="files-section" class="page-section">
+            <h1 style="font-size:32px; margin-bottom:1rem;">📁 Uploaded Files</h1>
+            <p style="color:var(--muted); margin-bottom:2rem;">Files used as additional research context</p>
+            <div id="uploaded-files-list" class="glass-panel"></div>
+        </div>
+
+        <!-- CITATIONS SECTION -->
+        <div id="citations-section" class="page-section">
+            <h1 style="font-size:32px; margin-bottom:1rem;">📑 Citations & References</h1>
+            <div id="citation-list"></div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        
+        // Global Data (Persists across sections!)
+        let globalGraphData = null;
+        let globalSources = [];
+        let globalRelated = [];
+        let globalQuery = "";
+        let globalTimestamp = "";
+        let network = null;
+
+        // Section Navigation (No page reload!)
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            // Show selected section
+            document.getElementById(sectionId + '-section').classList.add('active');
+            
+            // Update nav
+            const navIndex = {'research': 0, 'graph': 1, 'files': 2, 'citations': 3}[sectionId];
+            document.querySelectorAll('.nav-item')[navIndex].classList.add('active');
+            
+            // Render graph if switching to graph section
+            if (sectionId === 'graph') {
+                setTimeout(renderGraph, 100);
+            }
+            
+            // Load files if switching to files section
+            if (sectionId === 'files') {
+                loadUploadedFiles();
+            }
+            
+            // Load citations if switching to citations section
+            if (sectionId === 'citations') {
+                renderCitations();
+            }
+        }
+
+        // File Upload
+        async function handleFileUpload(event) {
+            const files = event.target.files;
+            const fileList = document.getElementById('fileList');
+            
+            for (let file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                try {
+                    const res = await fetch('/upload', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    item.innerHTML = `<i data-lucide="file-text" style="width:14px; height:14px;"></i> ${data.filename} (${data.chars} chars)`;
+                    fileList.appendChild(item);
+                    lucide.createIcons();
+                } catch (e) {
+                    alert('Error uploading file');
+                }
+            }
+        }
+
+        async function clearFiles() {
+            await fetch('/clear-files', { method: 'POST' });
+            document.getElementById('fileList').innerHTML = '';
+            alert('All files cleared');
+        }
+
+        async function loadUploadedFiles() {
+            const res = await fetch('/uploaded-files');
+            const data = await res.json();
+            const div = document.getElementById('uploaded-files-list');
+            
+            if (data.files.length === 0) {
+                div.innerHTML = '<p style="color:var(--muted);">No files uploaded yet</p>';
+            } else {
+                div.innerHTML = data.files.map(f => `
+                    <div class="paper-card">
+                        <div class="paper-title">${f.filename}</div>
+                        <div class="paper-meta">
+                            <span class="badge file">FILE</span>
+                            <span>${f.chars} characters</span>
+                            <span>${new Date(f.uploaded_at).toLocaleString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Search Function
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            if(!query) return;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results-area').style.display = 'none';
+
+            try {
+                const res = await fetch('/search', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({query: query, include_related: true})
+                });
+                const data = await res.json();
+                
+                // Store data globally (persists across sections!)
+                globalQuery = data.query;
+                globalTimestamp = data.timestamp;
+                globalSources = data.sources;
+                globalRelated = data.related_topics;
+                globalGraphData = data.knowledge_graph;
+                
+                // Display results
+                document.getElementById('ai-overview').innerText = data.overview;
+                document.getElementById('key-facts').innerHTML = data.key_facts.map(f => `<li>${f}</li>`).join('');
+                document.getElementById('innovations').innerHTML = data.innovations.map(i => `<li>${i}</li>`).join('');
+                
+                document.getElementById('related-topics').innerHTML = data.related_topics.map(t => 
+                    `<span class="topic-tag" onclick="document.getElementById('searchInput').value='${t}'; performSearch();">${t}</span>`
+                ).join('');
+
+                document.getElementById('sources-list').innerHTML = data.sources.slice(0, 8).map(s => `
+                    <div class="paper-card">
+                        <div class="paper-title">${s.title}</div>
+                        <div class="paper-meta">
+                            <span class="badge ${s.type}">${s.type.toUpperCase()}</span>
+                            <span>${s.source}</span>
+                        </div>
+                        <p style="font-size:13px; color:var(--muted);">${s.snippet}</p>
+                        <a href="${s.url}" target="_blank" style="font-size:12px; color:var(--accent); text-decoration:none; margin-top:0.5rem; display:inline-block;">Read Source →</a>
+                    </div>
+                `).join('');
+
+                document.getElementById('search-timestamp').innerText = `Search completed: ${data.timestamp}`;
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results-area').style.display = 'block';
+
+            } catch (e) {
+                alert("Error connecting to backend. Is Python running?");
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Knowledge Graph
+        function renderGraph() {
+            if (!globalGraphData || !globalGraphData.nodes || globalGraphData.nodes.length === 0) {
+                document.getElementById('mynetwork').style.display = 'none';
+                document.getElementById('graph-empty').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('mynetwork').style.display = 'block';
+            document.getElementById('graph-empty').style.display = 'none';
+
+            const nodes = new vis.DataSet(globalGraphData.nodes.map(n => ({
+                id: n.id, 
+                label: n.label, 
+                group: n.group,
+                color: n.group === 'Concept' ? '#3b82f6' : '#8b5cf6',
+                size: 20,
+                font: { color: '#e2e8f0', size: 14 }
+            })));
+            
+            const edges = new vis.DataSet(globalGraphData.edges.map(e => ({
+                from: e.from_node, 
+                to: e.to_node, 
+                label: e.label,
+                arrows: 'to',
+                color: '#64748b',
+                width: 2,
+                font: { align: 'top', color: '#94a3b8', size: 11 }
+            })));
+
+            const container = document.getElementById('mynetwork');
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                nodes: { shape: 'dot', borderWidth: 2, shadow: true },
+                edges: { smooth: { type: 'continuous' } },
+                physics: { 
+                    stabilization: { iterations: 100 },
+                    barnesHut: { gravitationalConstant: -2000, springLength: 200 }
+                },
+                interaction: { hover: true, dragNodes: true, zoomView: true },
+                layout: { randomSeed: 2 }
+            };
+            
+            // Destroy existing network if any
+            if (network) {
+                network.destroy();
+            }
+            
+            network = new vis.Network(container, data, options);
+
+            // Update stats
+            document.getElementById('node-count').innerText = globalGraphData.nodes.length;
+            document.getElementById('edge-count').innerText = globalGraphData.edges.length;
+            document.getElementById('last-update').innerText = new Date().toLocaleTimeString();
+        }
+
+        function exportGraphImage() {
+            if (network) {
+                const canvas = document.querySelector('#mynetwork canvas');
+                if (canvas) {
+                    const image = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.download = 'knowledge-graph.png';
+                    link.href = image;
+                    link.click();
+                }
+            }
+        }
+
+        // Citations
+        function renderCitations() {
+            const div = document.getElementById('citation-list');
+            if(globalSources.length === 0) {
+                div.innerHTML = "<p style='color:var(--muted); padding: 2rem; text-align: center;'>No citations yet. Run a search first.</p>";
+                return;
+            }
+            div.innerHTML = globalSources.map(s => `
+                <div class="paper-card" style="border-left: 3px solid var(--accent);">
+                    <div class="paper-title">${s.title}</div>
+                    <div class="paper-meta">
+                        <span>Source: ${s.source}</span>
+                        <span>URL: ${s.url}</span>
+                        <span class="badge ${s.type}">${s.type.toUpperCase()}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // PDF Export
+        async function exportPDF() {
+            if (!globalQuery) {
+                alert('Please run a search first!');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Title
+            doc.setFontSize(20);
+            doc.setTextColor(59, 130, 246);
+            doc.text("Scholar AI Research Report", 20, 20);
+            
+            // Query
+            doc.setFontSize(12);
+            doc.setTextColor(100, 116, 139);
+            doc.text(`Topic: ${globalQuery}`, 20, 30);
+            doc.text(`Generated: ${globalTimestamp}`, 20, 36);
+            
+            // Overview
+            doc.setFontSize(14);
+            doc.setTextColor(0, 0, 0);
+            doc.text("AI Overview", 20, 50);
+            doc.setFontSize(10);
+            const overviewLines = doc.splitTextToSize(document.getElementById('ai-overview').innerText, 170);
+            doc.text(overviewLines, 20, 58);
+            
+            // Key Facts
+            let yPos = 58 + (overviewLines.length * 5) + 10;
+            doc.setFontSize(14);
+            doc.text("Key Facts", 20, yPos);
+            doc.setFontSize(10);
+            const facts = document.getElementById('key-facts').innerText.split('\n').filter(f => f.trim());
+            facts.forEach((fact, i) => {
+                yPos += 6;
+                if (yPos > 280) { doc.addPage(); yPos = 20; }
+                doc.text(`• ${fact}`, 20, yPos);
+            });
+            
+            // Sources
+            yPos += 20;
+            if (yPos > 280) { doc.addPage(); yPos = 20; }
+            doc.setFontSize(14);
+            doc.text("External Sources", 20, yPos);
+            doc.setFontSize(10);
+            globalSources.slice(0, 10).forEach((source, i) => {
+                yPos += 8;
+                if (yPos > 280) { doc.addPage(); yPos = 20; }
+                doc.text(`${i + 1}. ${source.title} (${source.source})`, 20, yPos);
+            });
+            
+            // Save
+            doc.save(`research-${globalQuery.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+        }
+    </script>
+</body>
+</html>
