@@ -46,7 +46,7 @@ except Exception:
     pass
 
 # ── GROQ CLIENT ──
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "GROQ API KEY HERE")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 HEADERS = {"User-Agent": "ScholarAI/2.2 (research assistant; contact@scholarai.dev)"}
